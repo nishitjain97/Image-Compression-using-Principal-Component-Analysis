@@ -1,12 +1,43 @@
 ---
 title: "Image Compression using Principal Component Analysis"
 author: "Nishit Jain"
-date: "18/10/2020"
-output: html_document
+date: "Built on: `r format(Sys.Date(), '%m/%d/%Y')`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    toc: true
+    toc_float: true
+    toc_depth: 4
+  html_notebook:
+    toc: true
+    toc_float: yes
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+# Load packages
+required_packages <- c("tidyverse",
+                       "jpeg",
+                       "imager",
+                       "raster",
+                       "factoextra")
+
+new_packages <- required_packages[!(required_packages %in% installed.packages()[, "Package"])]
+
+# Installing the missing packages
+if (length(new_packages))
+  install.packages(new_packages, repos='http://cran.us.r-project.org')
+
+# Load all required packages
+lapply(required_packages, library, character.only=T)
+
+options(scipen=999)
+
+source("./compression_utils.R")
 ```
 
 # Objective
@@ -104,6 +135,96 @@ After selecting top $l$ eigenvectors based on eigenvalues of the covariance matr
 
 The reconstructed data will be a compressed version of original data
 
+# Analysis
+
+In this section we will demonstrate PCA based image compression on a real image.
+
+## Load Image
+
+We are using `jpeg::readJPEG()` function to load image from local directory.
+
+```{r}
+file_path <- "./sample_images/nishit_jain.jpeg"
+loaded_image <- jpeg::readJPEG(file_path, native = FALSE)
+plotImage(loaded_image)
+```
+
+## Image Properties
+
+We are looking at the size and the dimensions of the original image.
+
+```{r, echo=FALSE, results='asis'}
+cat("* ", "Size of original image is ", file.info(file_path)$size, " bytes.\n\n", sep='')
+cat("* ", "Dimensions of the image are: ", dim(loaded_image)[1], " X ", dim(loaded_image)[2], " X ", dim(loaded_image)[3], "\n\n", sep='')
+```
+
+The image is of size 400 X 400 with 3 channels (R, G, B)
+
+## Image Channels
+
+**Red Channel**
+
+```{r, echo=FALSE}
+loaded_image_copy <- as.array(loaded_image)
+
+loaded_image_copy[, , 2] <- matrix(0L, nrow=dim(loaded_image_copy[, , 2])[1], ncol=dim(loaded_image_copy[, , 2])[2])
+loaded_image_copy[, , 3] <- matrix(0L, nrow=dim(loaded_image_copy[, , 3])[1], ncol=dim(loaded_image_copy[, , 3])[2])
+
+plotImage(loaded_image_copy)
+```
+
+**Green Channel**
+
+```{r, echo=FALSE}
+loaded_image_copy <- as.array(loaded_image)
+
+loaded_image_copy[, , 1] <- matrix(0L, nrow=dim(loaded_image_copy[, , 1])[1], ncol=dim(loaded_image_copy[, , 1])[2])
+loaded_image_copy[, , 3] <- matrix(0L, nrow=dim(loaded_image_copy[, , 3])[1], ncol=dim(loaded_image_copy[, , 3])[2])
+
+plotImage(loaded_image_copy)
+```
+
+**Blue Channel**
+
+```{r, echo=FALSE}
+loaded_image_copy <- as.array(loaded_image)
+
+loaded_image_copy[, , 1] <- matrix(0L, nrow=dim(loaded_image_copy[, , 1])[1], ncol=dim(loaded_image_copy[, , 1])[2])
+loaded_image_copy[, , 2] <- matrix(0L, nrow=dim(loaded_image_copy[, , 2])[1], ncol=dim(loaded_image_copy[, , 2])[2])
+
+plotImage(loaded_image_copy)
+```
+
+Since we have 3 channels (R, G, B), we will perform PCA for each channel individually.
+
+## Principal Component Analysis
+
+```{r}
+# Extract 3 channels
+loaded_image_r <- loaded_image[, , 1]
+loaded_image_g <- loaded_image[, , 2]
+loaded_image_b <- loaded_image[, , 3]
+```
+
+We will not center the value for each pixel to reconstruct the original image after compression.
+
+```{r}
+# PCA on each channel
+loaded_image_r_pca <- stats::prcomp(loaded_image_r, center=FALSE)
+loaded_image_g_pca <- stats::prcomp(loaded_image_g, center=FALSE)
+loaded_image_b_pca <- stats::prcomp(loaded_image_b, center=FALSE)
+```
+
+```{r, echo=FALSE}
+fviz_eig(loaded_image_r_pca)
+
+fviz_pca_ind(loaded_image_r_pca,
+             col.ind = "cos2", # Color by the quality of representation
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+             )
+```
+
 
 # References
 
@@ -112,3 +233,7 @@ The reconstructed data will be a compressed version of original data
 2. https://stattrek.com/matrix-algebra/covariance-matrix.aspx
 
 3. https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix
+
+4. http://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/118-principal-component-analysis-in-r-prcomp-vs-princomp/
+
+5. https://rpubs.com/aaronsc32/image-compression-principal-component-analysis
