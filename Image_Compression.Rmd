@@ -8,3 +8,107 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+# Objective
+
+The objective of this notebook is:
+
+* To document research on and implementation of Principal Component Analysis for image compression
+
+* To demonstrate image compression using PCA
+
+# Research
+
+Principal Component Analysis is a way to identify and express patterns in data so as to highlight similarities and differences within it.
+
+**This is extremely important for higher dimensional data which can not be visualized to identify patterns.**
+
+After the pattern is identified, it can be used to compress the data to a lower dimension without much loss of information. This property of PCA is used for **image compression**.
+
+PCA is based on eigendecomposition of covariance matrix of the data.
+
+## Covariance
+
+Covariance is a measure of the extent to which corresponding elements from two sets of ordered data move in the same direction.
+
+Let $X$ and $Y$ be two random variables, then covariance is computed as:
+
+$$
+Cov(X, Y) = \frac{\sum_n{E[(X - E[X])(Y - E[Y])]}}{n-1}
+$$
+
+where $n$ is the number of items in the set
+
+## Covariance Matrix
+
+Covariance values for a set of variables are displayed as a covariance matrix, $C$, where
+
+$$
+C = \begin{bmatrix}
+c_{1, 1} & c_{1, 2} & c_{1, 3} & ... & c_{1, n}\\
+c_{2, 1} & c_{2, 2} & c_{2, 3} & ... & c_{2, n}\\
+c_{3, 1} & c_{3, 2} & c_{3, 3} & ... & c_{3, n}\\
+\vdots & \vdots & \vdots & ... & \vdots\\
+c_{n, 1} & c_{n, 2} & c_{n, 3} & ... & c_{n, n}\\
+\end{bmatrix}
+$$
+
+where $c_{i, j}$ is given as
+
+$$
+c_{i, j} = Cov(X_{i}, X_{j})
+$$
+
+**Note:** The diagonal elements, $c_{i, i}$ give $Var(X_{i})$
+
+**Note:** Covariance matrix is symmetric as $c_{i, j} = c_{j, i}$
+
+## Eigendecomposition
+
+In linear algebra, eigendecomposition is the factorization of a matrix into a canonical form, whereby the matrix is represented in terms of its eigenvalues and eigenvectors.
+
+A vector $v$ of dimension $N$ is an **eigenvector** of a square $N × N$ matrix $A$ if it satisfies the linear equation
+
+$$
+A\vec{v} = \lambda \vec{v}
+$$
+where $\lambda$ is any scalar value and corresponds to the **eigenvalue** for the respective **eigenvector**
+
+**Note:** $\vec{v}$ needs to be a non-zero vector
+
+Geometrically, this equation implies that for any matrix $A$, $\vec{v}$ represents any vector which, when linearly transformed using $A$, retains its direction but is scaled by a factor of $\lambda$.
+
+## PCA Approach
+
+PCA is performed using the following steps:
+
+* Step 1: Represent the data as a $M X N$ matrix, where $M$ are the number of samples and $N$ are the number of features (dimensions)
+
+* Step 2: Center the data by subtracting the mean of each feature across samples from the value of that feature for each sample
+
+* Step 3: Calculate covariance matrix for the centered data
+
+* Step 4: Perform eigendecomposition on the covariance matrix
+
+* Step 5: Arrange the eigenvectors and eigenvalues in decreasing order of eigenvalues
+
+* Step 6: Select top $l$ eigenvectors based on eigenvalues where $l < N$
+
+## Image Compression
+
+After selecting top $l$ eigenvectors based on eigenvalues of the covariance matrix of data, they can be used to compress images as follows:
+
+* Step 1: Perform matrix multiplication of original data with selected eigenvectors to get lower dimension representation of data
+
+* Step 2: Reconstruct original data using matrix multiplication of lower dimension data with inverse of matrix of eigenvectors
+
+The reconstructed data will be a compressed version of original data
+
+
+# References
+
+1. https://ourarchive.otago.ac.nz/bitstream/handle/10523/7534/OUCS-2002-12.pdf?sequence=1&isAllowed=y
+
+2. https://stattrek.com/matrix-algebra/covariance-matrix.aspx
+
+3. https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix
