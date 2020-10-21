@@ -2,6 +2,7 @@
 title: "Image Compression using Principal Component Analysis"
 author: "Nishit Jain"
 date: "Built on: `r format(Sys.Date(), '%m/%d/%Y')`"
+version: "v1"
 output:
   html_document:
     code_folding: hide
