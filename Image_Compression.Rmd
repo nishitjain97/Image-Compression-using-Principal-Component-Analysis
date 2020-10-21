@@ -18,7 +18,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, echo=FALSE}
+```{r, include=FALSE}
 # Load packages
 required_packages <- c("tidyverse",
                        "jpeg",
@@ -44,7 +44,7 @@ source("./compression_utils.R")
 
 The objective of this notebook is:
 
-* To document research on and implementation of Principal Component Analysis for image compression
+* To document research and implementation of Principal Component Analysis for image compression
 
 * To demonstrate image compression using PCA
 
@@ -146,7 +146,7 @@ We are using `jpeg::readJPEG()` function to load image from local directory.
 ```{r}
 file_path <- "./sample_images/nishit_jain.jpeg"
 loaded_image <- jpeg::readJPEG(file_path, native = FALSE)
-plotImage(loaded_image)
+plotImage(list(loaded_image))
 ```
 
 ## Image Properties
@@ -156,48 +156,41 @@ We are looking at the size and the dimensions of the original image.
 ```{r, echo=FALSE, results='asis'}
 cat("* ", "Size of original image is ", file.info(file_path)$size, " bytes.\n\n", sep='')
 cat("* ", "Dimensions of the image are: ", dim(loaded_image)[1], " X ", dim(loaded_image)[2], " X ", dim(loaded_image)[3], "\n\n", sep='')
+cat("* ", "This image can be thought of as having ", dim(loaded_image)[1], " samples of ", dim(loaded_image)[2], " dimensions each with ", dim(loaded_image)[3], " different compression tasks.\n\n", sep='')
 ```
-
-The image is of size 400 X 400 with 3 channels (R, G, B)
 
 ## Image Channels
 
-**Red Channel**
-
 ```{r, echo=FALSE}
 loaded_image_copy <- as.array(loaded_image)
 
 loaded_image_copy[, , 2] <- matrix(0L, nrow=dim(loaded_image_copy[, , 2])[1], ncol=dim(loaded_image_copy[, , 2])[2])
 loaded_image_copy[, , 3] <- matrix(0L, nrow=dim(loaded_image_copy[, , 3])[1], ncol=dim(loaded_image_copy[, , 3])[2])
 
-plotImage(loaded_image_copy)
-```
+image_r <- loaded_image_copy
 
-**Green Channel**
-
-```{r, echo=FALSE}
 loaded_image_copy <- as.array(loaded_image)
 
 loaded_image_copy[, , 1] <- matrix(0L, nrow=dim(loaded_image_copy[, , 1])[1], ncol=dim(loaded_image_copy[, , 1])[2])
 loaded_image_copy[, , 3] <- matrix(0L, nrow=dim(loaded_image_copy[, , 3])[1], ncol=dim(loaded_image_copy[, , 3])[2])
 
-plotImage(loaded_image_copy)
-```
+image_g <- loaded_image_copy
 
-**Blue Channel**
-
-```{r, echo=FALSE}
 loaded_image_copy <- as.array(loaded_image)
 
 loaded_image_copy[, , 1] <- matrix(0L, nrow=dim(loaded_image_copy[, , 1])[1], ncol=dim(loaded_image_copy[, , 1])[2])
 loaded_image_copy[, , 2] <- matrix(0L, nrow=dim(loaded_image_copy[, , 2])[1], ncol=dim(loaded_image_copy[, , 2])[2])
 
-plotImage(loaded_image_copy)
+image_b <- loaded_image_copy
+
+plotImage(list(image_r, image_g, image_b))
 ```
 
 Since we have 3 channels (R, G, B), we will perform PCA for each channel individually.
 
 ## Principal Component Analysis
+
+In this section, we will use PCA to extract new dimensions from the image and plot their importance.
 
 ```{r}
 # Extract 3 channels
@@ -206,7 +199,7 @@ loaded_image_g <- loaded_image[, , 2]
 loaded_image_b <- loaded_image[, , 3]
 ```
 
-We will not center the value for each pixel to reconstruct the original image after compression.
+While performing PCA, we will not center the value for each pixel. This will enable us to reconstruct the original image after compression.
 
 ```{r}
 # PCA on each channel
@@ -215,16 +208,226 @@ loaded_image_g_pca <- stats::prcomp(loaded_image_g, center=FALSE)
 loaded_image_b_pca <- stats::prcomp(loaded_image_b, center=FALSE)
 ```
 
-```{r, echo=FALSE}
-fviz_eig(loaded_image_r_pca)
+### Scree Plot {.tabset}
 
-fviz_pca_ind(loaded_image_r_pca,
-             col.ind = "cos2", # Color by the quality of representation
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE     # Avoid text overlapping
-             )
+It is used to plots the order of the percentage of explained variance of the original data by each principal component.
+
+#### Red Channel
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fviz_eig(loaded_image_r_pca, main = "")
 ```
 
+#### Green Channel
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fviz_eig(loaded_image_g_pca, main = "")
+```
+
+#### Blue Channel
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fviz_eig(loaded_image_b_pca, main = "")
+```
+
+## Image Compression
+
+```{r, include=FALSE}
+loaded_image_pca <- list(loaded_image_r_pca, loaded_image_g_pca, loaded_image_g_pca)
+e_values_r <- get_eigenvalue(loaded_image_r_pca) %>% dplyr::mutate_if(is.numeric, round, 2)
+e_values_g <- get_eigenvalue(loaded_image_g_pca) %>% dplyr::mutate_if(is.numeric, round, 2)
+e_values_b <- get_eigenvalue(loaded_image_b_pca) %>% dplyr::mutate_if(is.numeric, round, 2)
+```
+
+
+The size of compressed image is decided by the number of principal components chosen for compression. 
+
+**Less number of principal components results in lower size of image but involves more loss of information.**
+
+Number of principal components can be chosen based on percentage of variance explained.
+
+### 90% Explained Variance
+
+```{r}
+explained_variance <- 90.00
+
+components <- list()
+components[[1]] <- e_values_r %>% 
+  dplyr::filter(cumulative.variance.percent < explained_variance) %>% 
+  nrow()
+components[[2]] <- e_values_g %>% 
+  dplyr::filter(cumulative.variance.percent < explained_variance) %>% 
+  nrow()
+components[[3]] <- e_values_b %>% 
+  dplyr::filter(cumulative.variance.percent < explained_variance) %>% 
+  nrow()
+
+compressed_image <- sapply(1:length(loaded_image_pca), function(channel_index) {
+  channel_pca <- loaded_image_pca[[channel_index]]
+  n_components <- components[[channel_index]]
+  
+  compressed_channel <- channel_pca$x[, 1:n_components] %*% t(channel_pca$rotation[, 1:n_components])
+  compressed_channel[compressed_channel > 1] <- 1
+  compressed_channel[compressed_channel < 0] <- 0
+  return(compressed_channel)
+}, simplify = 'array')
+
+jpeg::writeJPEG(compressed_image, paste0("./tmp/compressed_", explained_variance, ".jpeg"))
+
+plotImage(list(compressed_image))
+```
+
+```{r, echo=FALSE, results='asis'}
+original_size <- file.info(file_path)$size
+compressed_size <- file.info(paste0("./tmp/compressed_", explained_variance, ".jpeg"))$size
+cat("* ", "Size of original image is ", original_size, " bytes.\n\n", sep='')
+cat("* ", "Size of compressed image is ", compressed_size, " bytes.\n\n", sep='')
+cat("* ", "Compression percentage: ", round(100 * (compressed_size - original_size) / original_size, 2), "%", sep='')
+```
+
+
+### 95% Explained Variance
+
+```{r}
+explained_variance <- 95.00
+
+components <- list()
+components[[1]] <- e_values_r %>% 
+  dplyr::filter(cumulative.variance.percent < explained_variance) %>% 
+  nrow()
+components[[2]] <- e_values_g %>% 
+  dplyr::filter(cumulative.variance.percent < explained_variance) %>% 
+  nrow()
+components[[3]] <- e_values_b %>% 
+  dplyr::filter(cumulative.variance.percent < explained_variance) %>% 
+  nrow()
+
+compressed_image <- sapply(1:length(loaded_image_pca), function(channel_index) {
+  channel_pca <- loaded_image_pca[[channel_index]]
+  n_components <- components[[channel_index]]
+  
+  compressed_channel <- channel_pca$x[, 1:n_components] %*% t(channel_pca$rotation[, 1:n_components])
+  compressed_channel[compressed_channel > 1] <- 1
+  compressed_channel[compressed_channel < 0] <- 0
+  return(compressed_channel)
+}, simplify = 'array')
+
+jpeg::writeJPEG(compressed_image, paste0("./tmp/compressed_", explained_variance, ".jpeg"))
+
+plotImage(list(compressed_image))
+```
+
+```{r, echo=FALSE, results='asis'}
+original_size <- file.info(file_path)$size
+compressed_size <- file.info(paste0("./tmp/compressed_", explained_variance, ".jpeg"))$size
+cat("* ", "Size of original image is ", original_size, " bytes.\n\n", sep='')
+cat("* ", "Size of compressed image is ", compressed_size, " bytes.\n\n", sep='')
+cat("* ", "Compression percentage: ", round(100 * (compressed_size - original_size) / original_size, 2), "%", sep='')
+```
+
+### 99% Explained Variance
+
+```{r}
+explained_variance <- 99.00
+
+components <- list()
+components[[1]] <- e_values_r %>% 
+  dplyr::filter(cumulative.variance.percent < explained_variance) %>% 
+  nrow()
+components[[2]] <- e_values_g %>% 
+  dplyr::filter(cumulative.variance.percent < explained_variance) %>% 
+  nrow()
+components[[3]] <- e_values_b %>% 
+  dplyr::filter(cumulative.variance.percent < explained_variance) %>% 
+  nrow()
+
+compressed_image <- sapply(1:length(loaded_image_pca), function(channel_index) {
+  channel_pca <- loaded_image_pca[[channel_index]]
+  n_components <- components[[channel_index]]
+  
+  compressed_channel <- channel_pca$x[, 1:n_components] %*% t(channel_pca$rotation[, 1:n_components])
+  compressed_channel[compressed_channel > 1] <- 1
+  compressed_channel[compressed_channel < 0] <- 0
+  return(compressed_channel)
+}, simplify = 'array')
+
+jpeg::writeJPEG(compressed_image, paste0("./tmp/compressed_", explained_variance, ".jpeg"))
+
+plotImage(list(compressed_image))
+```
+
+```{r, echo=FALSE, results='asis'}
+original_size <- file.info(file_path)$size
+compressed_size <- file.info(paste0("./tmp/compressed_", explained_variance, ".jpeg"))$size
+cat("* ", "Size of original image is ", original_size, " bytes.\n\n", sep='')
+cat("* ", "Size of compressed image is ", compressed_size, " bytes.\n\n", sep='')
+cat("* ", "Compression percentage: ", round(100 * (compressed_size - original_size) / original_size, 2), "%", sep='')
+```
+
+### 99.99% Explained Variance
+
+```{r}
+explained_variance <- 99.99
+
+components <- list()
+components[[1]] <- e_values_r %>% 
+  dplyr::filter(cumulative.variance.percent < explained_variance) %>% 
+  nrow()
+components[[2]] <- e_values_g %>% 
+  dplyr::filter(cumulative.variance.percent < explained_variance) %>% 
+  nrow()
+components[[3]] <- e_values_b %>% 
+  dplyr::filter(cumulative.variance.percent < explained_variance) %>% 
+  nrow()
+
+compressed_image <- sapply(1:length(loaded_image_pca), function(channel_index) {
+  channel_pca <- loaded_image_pca[[channel_index]]
+  n_components <- components[[channel_index]]
+  
+  compressed_channel <- channel_pca$x[, 1:n_components] %*% t(channel_pca$rotation[, 1:n_components])
+  compressed_channel[compressed_channel > 1] <- 1
+  compressed_channel[compressed_channel < 0] <- 0
+  return(compressed_channel)
+}, simplify = 'array')
+
+jpeg::writeJPEG(compressed_image, paste0("./tmp/compressed_", explained_variance, ".jpeg"))
+
+plotImage(list(compressed_image))
+```
+
+```{r, echo=FALSE, results='asis'}
+original_size <- file.info(file_path)$size
+compressed_size <- file.info(paste0("./tmp/compressed_", explained_variance, ".jpeg"))$size
+cat("* ", "Size of original image is ", original_size, " bytes.\n\n", sep='')
+cat("* ", "Size of compressed image is ", compressed_size, " bytes.\n\n", sep='')
+cat("* ", "Compression percentage: ", round(100 * (compressed_size - original_size) / original_size, 2), "%", sep='')
+```
+
+### 100% Explained Variance
+
+```{r}
+compressed_image <- sapply(1:length(loaded_image_pca), function(channel_index) {
+  channel_pca <- loaded_image_pca[[channel_index]]
+  n_components <- e_values_r %>% nrow()
+  
+  compressed_channel <- channel_pca$x[, 1:n_components] %*% t(channel_pca$rotation[, 1:n_components])
+  compressed_channel[compressed_channel > 1] <- 1
+  compressed_channel[compressed_channel < 0] <- 0
+  return(compressed_channel)
+}, simplify = 'array')
+
+jpeg::writeJPEG(compressed_image, paste0("./tmp/compressed_", explained_variance, ".jpeg"))
+
+plotImage(list(compressed_image))
+```
+
+```{r, echo=FALSE, results='asis'}
+original_size <- file.info(file_path)$size
+compressed_size <- file.info(paste0("./tmp/compressed_", explained_variance, ".jpeg"))$size
+cat("* ", "Size of original image is ", original_size, " bytes.\n\n", sep='')
+cat("* ", "Size of compressed image is ", compressed_size, " bytes.\n\n", sep='')
+cat("* ", "Compression percentage: ", round(100 * (compressed_size - original_size) / original_size, 2), "%", sep='')
+```
 
 # References
 
